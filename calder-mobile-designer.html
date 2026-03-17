@@ -907,13 +907,52 @@ document.getElementById('exportDxfBtn').addEventListener('click',()=>{
   if(state.circles.length===0)return;const scale=parseFloat(document.getElementById('unitScale').value);
   let dxf='0\nSECTION\n2\nHEADER\n0\nENDSEC\n0\nSECTION\n2\nTABLES\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n';
   for(const c of state.circles){const cx=c.x*scale,cy=c.y*scale,r=c.r*scale,s=c.innerSize*scale;
-    dxf+=dxfCircle(cx,cy,r);if(state.innerShapeType==='circle')dxf+=dxfCircle(cx,cy,s);
+    const blockers=state.circles.filter(o=>o!==c&&Math.hypot(o.x-c.x,o.y-c.y)<c.r+o.r).map(o=>({cx:o.x*scale,cy:o.y*scale,r:o.r*scale}));
+    const arcs=getTrimmedArcs(cx,cy,r,blockers);
+    if(arcs===null)dxf+=dxfCircle(cx,cy,r);
+    else arcs.forEach(({startDeg,endDeg})=>dxf+=dxfArc(cx,cy,r,startDeg,endDeg));
+    if(state.innerShapeType==='circle')dxf+=dxfCircle(cx,cy,s);
     else if(state.innerShapeType==='triangle'){const v=[];for(let i=0;i<3;i++){const a=(i*2*Math.PI/3)-Math.PI/2;
       v.push({x:cx+s*Math.cos(a),y:cy+s*Math.sin(a)});}for(let i=0;i<3;i++)dxf+=dxfLine(v[i].x,v[i].y,v[(i+1)%3].x,v[(i+1)%3].y);}
     else if(state.innerShapeType==='square'){dxf+=dxfLine(cx-s,cy-s,cx+s,cy-s);dxf+=dxfLine(cx+s,cy-s,cx+s,cy+s);
       dxf+=dxfLine(cx+s,cy+s,cx-s,cy+s);dxf+=dxfLine(cx-s,cy+s,cx-s,cy-s);}}
   dxf+='0\nENDSEC\n0\nEOF\n';downloadFile(dxf,'calder_mobile.dxf','application/dxf');});
 
+// Returns array of {startDeg,endDeg} arc segments of circle (cx,cy,r) lying OUTSIDE all blockers.
+// Returns null when no blocker overlaps (caller should use a full CIRCLE entity).
+// Arc angles follow DXF convention: CCW from positive-X, in degrees, math-Y orientation.
+function getTrimmedArcs(cx,cy,r,blockers){
+  const TAU=Math.PI*2,toDeg=a=>a*180/Math.PI,norm=a=>((a%TAU)+TAU)%TAU;
+  // Is angle p inside CCW arc [s,e)?
+  const inArc=(s,e,p)=>{s=norm(s);e=norm(e);p=norm(p);if(Math.abs(s-e)<1e-9)return false;return s<e?p>=s&&p<e:p>=s||p<e;};
+  const blocked=[];
+  for(const b of blockers){
+    const dx=b.cx-cx,dy=b.cy-cy,d=Math.sqrt(dx*dx+dy*dy);
+    if(d>=r+b.r-1e-9)continue;           // circles don't actually intersect
+    if(d+r<=b.r+1e-9)return[];           // this circle fully inside blocker
+    const a=(r*r-b.r*b.r+d*d)/(2*d),h2=r*r-a*a;
+    if(h2<=0)continue;
+    const h=Math.sqrt(h2),mx=cx+a*dx/d,my=cy+a*dy/d;
+    // Intersection point angles with Y-flipped so output matches DXF math convention
+    const θ1=norm(Math.atan2(cy-(my-h*dx/d),mx+h*dy/d-cx));
+    const θ2=norm(Math.atan2(cy-(my+h*dx/d),mx-h*dy/d-cx));
+    const dir=norm(Math.atan2(-dy,dx)); // direction toward blocker, Y-flipped
+    // Blocked arc is the CCW arc [s,e] that contains dir (the arc facing into the blocker)
+    blocked.push(inArc(θ1,θ2,dir)?[θ1,θ2]:[θ2,θ1]);
+  }
+  if(blocked.length===0)return null;
+  // Collect all boundary angles, sweep to find free (unblocked) arc segments
+  const pts=[...new Set(blocked.flatMap(([s,e])=>[s,e]))].sort((a,b)=>a-b);
+  const free=[];
+  for(let i=0;i<pts.length;i++){
+    const s=pts[i],e=pts[(i+1)%pts.length];
+    const arcLen=e>s?e-s:TAU-s+e,mid=norm(s+arcLen/2);
+    if(!blocked.some(([bs,be])=>inArc(bs,be,mid)))free.push({startDeg:toDeg(s),endDeg:toDeg(e)});
+  }
+  return free;
+}
+
+function dxfArc(cx,cy,r,startDeg,endDeg){return`0\nARC\n8\n0\n10\n${cx.toFixed(4)}\n20\n${cy.toFixed(4)}\n30\n0.0\n40\n${r.toFixed(4)}\n50\n${startDeg.toFixed(4)}\n51\n${endDeg.toFixed(4)}\n`;}
 function dxfCircle(cx,cy,r){return`0\nCIRCLE\n8\n0\n10\n${cx.toFixed(4)}\n20\n${cy.toFixed(4)}\n30\n0.0\n40\n${r.toFixed(4)}\n`;}
 function dxfLine(x1,y1,x2,y2){return`0\nLINE\n8\n0\n10\n${x1.toFixed(4)}\n20\n${y1.toFixed(4)}\n30\n0.0\n11\n${x2.toFixed(4)}\n21\n${y2.toFixed(4)}\n31\n0.0\n`;}
 function downloadFile(content,filename,mimeType){const blob=new Blob([content],{type:mimeType});const url=URL.createObjectURL(blob);
