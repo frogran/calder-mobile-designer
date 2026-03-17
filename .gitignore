@@ -1,0 +1,14 @@
+# Generated outputs
+*.dxf
+*.svg
+*.png
+*.jpg
+*.jpeg
+
+# Old versioned HTML files
+*2026_3_5*
+*2026_MAR*
+calder-mobile-designer 2026*
+
+# macOS
+.DS_Store

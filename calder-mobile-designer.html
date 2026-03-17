@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calder Mobile Designer — DXF Generator</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Space+Grotesk:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap');
+
+  :root {
+    --bg: #0e0e11;
+    --surface: #16161b;
+    --surface2: #1e1e25;
+    --border: #2a2a35;
+    --text: #e8e6e1;
+    --text-dim: #8a8892;
+    --accent: #f05e23;
+    --accent2: #ff8c5a;
+    --accent-glow: rgba(240, 94, 35, 0.15);
+    --success: #4ecb71;
+    --canvas-bg: #121215;
+    --circle-stroke: #f05e23;
+    --circle-fill: rgba(240, 94, 35, 0.05);
+    --inner-stroke: #ff8c5a;
+    --curve-stroke: #555;
+    --point-color: #fff;
+    --shape-circle: #f05e23;
+    --shape-ellipse: #ff8c5a;
+    --shape-rect: #4ecb71;
+    --shape-triangle: #5ba8f7;
+    --shape-polygon: #c77dff;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  header h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    font-weight: 400;
+    letter-spacing: 0.5px;
+    color: var(--text);
+  }
+  header h1 span { color: var(--accent); }
+
+  .header-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .phase-indicator {
+    font-size: 11px;
+    color: var(--text-dim);
+    padding: 4px 12px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+  }
+
+  /* ===== TAB BAR ===== */
+  .tab-bar {
+    display: flex;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    padding: 0 24px;
+  }
+  .tab-bar button {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 10px 24px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    top: 1px;
+  }
+  .tab-bar button:hover { color: var(--text); }
+  .tab-bar button.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  .tab-content {
+    display: none;
+    flex: 1;
+    overflow: hidden;
+  }
+  .tab-content.active { display: flex; }
+
+  .main-layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .canvas-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--canvas-bg);
+    position: relative;
+  }
+
+  .canvas-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  canvas { flex: 1; cursor: crosshair; display: block; }
+
+  .canvas-hint {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    color: var(--text-dim);
+    background: var(--surface);
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    pointer-events: none;
+  }
+
+  .panel {
+    width: 340px;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel-section {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .panel-section h3 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--accent);
+    margin-bottom: 14px;
+  }
+
+  .control-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .control-row label {
+    font-size: 11px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+    width: 110px;
+  }
+
+  .control-row input[type="range"] {
+    flex: 1;
+    margin: 0 10px;
+    accent-color: var(--accent);
+    height: 4px;
+  }
+
+  .control-row .val {
+    font-size: 11px;
+    color: var(--text);
+    width: 40px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .control-row select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  .control-row input[type="text"] {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    outline: none;
+    flex: 1;
+    margin-left: 10px;
+  }
+  .control-row input[type="text"]:focus { border-color: var(--accent); }
+
+  .fn-hint {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: -6px;
+    margin-bottom: 10px;
+    padding-left: 2px;
+  }
+
+  .btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    padding: 8px 18px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    background: var(--surface2);
+    color: var(--text);
+    transition: all 0.15s;
+  }
+  .btn:hover { background: var(--border); }
+
+  .btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 500;
+  }
+  .btn-primary:hover {
+    background: var(--accent2);
+    border-color: var(--accent2);
+  }
+
+  .btn-sm { padding: 5px 12px; font-size: 11px; }
+
+  .btn-group {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .mode-toggle {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .mode-toggle button {
+    flex: 1;
+    padding: 5px 8px;
+    font-size: 10px;
+    font-family: 'DM Mono', monospace;
+    background: var(--surface2);
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .mode-toggle button.active {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .panel-footer {
+    padding: 16px 20px;
+    margin-top: auto;
+  }
+  .panel-footer .btn {
+    width: 100%;
+    padding: 12px;
+    font-size: 13px;
+  }
+
+  .panel::-webkit-scrollbar { width: 6px; }
+  .panel::-webkit-scrollbar-track { background: transparent; }
+  .panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .info-box {
+    background: var(--accent-glow);
+    border: 1px solid rgba(240,94,35,0.2);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 11px;
+    color: var(--accent2);
+    line-height: 1.5;
+    margin-bottom: 12px;
+  }
+
+  .circle-count-display {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 28px;
+    font-weight: 300;
+    color: var(--accent);
+    text-align: center;
+    padding: 8px 0;
+  }
+
+  /* ===== IMAGE TRACER STYLES ===== */
+  .tracer-canvas-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .tracer-canvas-wrap canvas {
+    cursor: default;
+    max-width: 100%;
+    max-height: 100%;
+    flex: none;
+  }
+
+  .drop-zone {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    z-index: 5;
+  }
+  .drop-zone.hidden { display: none; }
+  .drop-zone-icon {
+    width: 80px; height: 80px;
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  .drop-zone-icon svg { width: 32px; height: 32px; stroke: var(--text-dim); }
+  .drop-zone.dragover .drop-zone-icon {
+    border-color: var(--accent);
+    background: var(--accent-glow);
+  }
+  .drop-zone.dragover .drop-zone-icon svg { stroke: var(--accent); }
+  .drop-zone-text {
+    font-size: 13px; color: var(--text-dim);
+    text-align: center; line-height: 1.6;
+  }
+  .drop-zone-text .browse-link {
+    color: var(--accent); cursor: pointer;
+    text-decoration: underline; text-underline-offset: 2px;
+  }
+  .drop-zone-text .browse-link:hover { color: var(--accent2); }
+
+  .shape-legend {
+    display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;
+  }
+  .shape-legend-item {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 10px; color: var(--text-dim);
+  }
+  .shape-legend-swatch { width: 10px; height: 10px; border-radius: 2px; }
+
+  .shape-list { max-height: 180px; overflow-y: auto; font-size: 11px; }
+  .shape-list::-webkit-scrollbar { width: 4px; }
+  .shape-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .shape-list-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 0; color: var(--text-dim);
+    border-bottom: 1px solid rgba(42,42,53,0.4);
+  }
+  .shape-list-item .swatch { width: 6px; height: 6px; border-radius: 1px; flex-shrink: 0; }
+  .shape-list-item .shape-info { flex: 1; }
+  .shape-list-item .shape-dims { opacity: 0.6; font-size: 10px; }
+
+  .tracer-stats {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 4px;
+  }
+  .tracer-stat {
+    background: var(--surface2); border-radius: 4px;
+    padding: 8px 10px; text-align: center;
+  }
+  .tracer-stat .num {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 20px; font-weight: 300; color: var(--accent);
+  }
+  .tracer-stat .lbl {
+    font-size: 9px; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;
+  }
+
+  .btn-disabled { opacity: 0.4; pointer-events: none; }
+
+  .tracer-loading {
+    position: absolute; inset: 0;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(14,14,17,0.85); z-index: 10;
+    flex-direction: column; gap: 12px;
+  }
+  .tracer-loading.visible { display: flex; }
+  .tracer-loading .spinner {
+    width: 32px; height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .tracer-loading span { font-size: 12px; color: var(--text-dim); }
+
+  .checkbox-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 10px; font-size: 11px;
+    color: var(--text-dim); cursor: pointer;
+  }
+  .checkbox-row input[type="checkbox"] { accent-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Calder <span>Mobile</span> Designer</h1>
+  <div class="header-actions">
+    <span class="phase-indicator" id="phaseLabel">Phase 1: Draw Curve</span>
+  </div>
+</header>
+
+<div class="tab-bar">
+  <button class="active" data-tab="mobile">Mobile Designer</button>
+  <button data-tab="tracer">Image Tracer</button>
+</div>
+
+<!-- ==================== TAB 1: MOBILE DESIGNER ==================== -->
+<div class="tab-content active" id="tab-mobile">
+  <div class="main-layout">
+    <div class="canvas-area">
+      <div class="canvas-toolbar">
+        <span>Canvas</span>
+        <span style="margin-left:auto;" id="coordDisplay">—</span>
+      </div>
+      <canvas id="mainCanvas"></canvas>
+      <div class="canvas-hint" id="canvasHint">Click to place 4 control points for a Bézier curve</div>
+    </div>
+    <div class="panel" id="panelArea">
+      <div id="phase1Panel">
+        <div class="panel-section">
+          <h3>Bézier Curve</h3>
+          <div class="info-box">Click on the canvas to place 4 control points.<br>Points can be dragged to adjust.</div>
+          <div class="circle-count-display" id="pointCountDisplay">0 / 4 points</div>
+          <div class="btn-group" style="justify-content:center;">
+            <button class="btn btn-sm" id="clearPointsBtn">Clear</button>
+            <button class="btn btn-sm btn-primary" id="confirmCurveBtn" disabled>Confirm Curve</button>
+          </div>
+        </div>
+      </div>
+      <div id="phase2Panel" style="display:none;">
+        <div class="panel-section">
+          <h3>Circle Count</h3>
+          <div class="control-row">
+            <label>Circles</label>
+            <input type="range" id="circleCount" min="3" max="20" value="6">
+            <span class="val" id="circleCountVal">6</span>
+          </div>
+        </div>
+        <div class="panel-section">
+          <h3>Circle Sizes</h3>
+          <div class="mode-toggle" id="sizeModeToggle">
+            <button class="active" data-mode="symmetric">Symmetric</button>
+            <button data-mode="function">Function</button>
+          </div>
+          <div id="sizeSymmetricControls">
+            <div class="control-row">
+              <label>Radius</label>
+              <input type="range" id="uniformRadius" min="10" max="120" value="40">
+              <span class="val" id="uniformRadiusVal">40</span>
+            </div>
+          </div>
+          <div id="sizeFunctionControls" style="display:none;">
+            <div class="control-row">
+              <label>f(n) =</label>
+              <input type="text" id="sizeFnInput" value="30 + 10 * sin(n)" placeholder="e.g. 20 + 5*n">
+            </div>
+            <div class="fn-hint">n = ordinal (1-based). Use: sin, cos, sqrt, abs, pow, n, N</div>
+          </div>
+        </div>
+        <div class="panel-section">
+          <h3>Intersection</h3>
+          <div class="mode-toggle" id="intersectModeToggle">
+            <button class="active" data-mode="constant">Constant</button>
+            <button data-mode="relative">Relative</button>
+          </div>
+          <div id="intersectConstantControls">
+            <div class="control-row">
+              <label>Overlap (px)</label>
+              <input type="range" id="overlapPx" min="2" max="60" value="12">
+              <span class="val" id="overlapPxVal">12</span>
+            </div>
+          </div>
+          <div id="intersectRelativeControls" style="display:none;">
+            <div class="control-row">
+              <label>Overlap %</label>
+              <input type="range" id="overlapPct" min="5" max="50" value="20">
+              <span class="val" id="overlapPctVal">20%</span>
+            </div>
+          </div>
+        </div>
+        <div class="panel-section">
+          <h3>Inner Shape</h3>
+          <div class="control-row">
+            <label>Shape</label>
+            <select id="innerShapeType">
+              <option value="circle">Circle</option>
+              <option value="triangle">Triangle</option>
+              <option value="square">Square</option>
+            </select>
+          </div>
+          <div class="mode-toggle" id="innerSizeModeToggle">
+            <button class="active" data-mode="constant">Constant</button>
+            <button data-mode="function">Function</button>
+          </div>
+          <div id="innerSizeConstantControls">
+            <div class="control-row">
+              <label>Inner Size</label>
+              <input type="range" id="innerSizeConst" min="2" max="40" value="8">
+              <span class="val" id="innerSizeConstVal">8</span>
+            </div>
+          </div>
+          <div id="innerSizeFunctionControls" style="display:none;">
+            <div class="control-row">
+              <label>f(n) =</label>
+              <input type="text" id="innerSizeFnInput" value="5 + n" placeholder="e.g. 3 + 2*n">
+            </div>
+            <div class="fn-hint">n = ordinal (1-based). N = total count.</div>
+          </div>
+        </div>
+        <div class="panel-section">
+          <h3>Edit Curve</h3>
+          <div class="btn-group">
+            <button class="btn btn-sm" id="resetCurveBtn">Redraw Curve</button>
+          </div>
+        </div>
+        <div class="panel-section">
+          <h3>Units</h3>
+          <div class="control-row">
+            <label>Scale</label>
+            <select id="unitScale">
+              <option value="1">1 px = 1 mm</option>
+              <option value="0.1">1 px = 0.1 mm</option>
+              <option value="0.5">1 px = 0.5 mm</option>
+              <option value="2">1 px = 2 mm</option>
+            </select>
+          </div>
+        </div>
+        <div class="panel-footer">
+          <button class="btn btn-primary" id="exportSvgBtn">⬇ Export .SVG (Onshape / Inkscape)</button>
+          <button class="btn" id="exportDxfBtn" style="width:100%;margin-top:8px;">⬇ Export .DXF (Laser Cutter)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== TAB 2: IMAGE TRACER ==================== -->
+<div class="tab-content" id="tab-tracer">
+  <div class="main-layout">
+    <div class="canvas-area">
+      <div class="canvas-toolbar">
+        <span>Preview</span>
+        <span style="margin-left:auto;" id="tracerCoordDisplay">—</span>
+      </div>
+      <div class="tracer-canvas-wrap" id="tracerCanvasWrap">
+        <div class="drop-zone" id="dropZone">
+          <div class="drop-zone-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+          </div>
+          <div class="drop-zone-text">
+            Drop an image here<br>
+            or <span class="browse-link" id="browseLink">browse files</span>
+          </div>
+          <input type="file" id="tracerFileInput" accept="image/*" style="display:none">
+        </div>
+        <canvas id="tracerCanvas" style="display:none;"></canvas>
+        <div class="tracer-loading" id="tracerLoading">
+          <div class="spinner"></div>
+          <span>Detecting shapes…</span>
+        </div>
+      </div>
+      <div class="canvas-hint" id="tracerHint">Load an image to begin shape detection</div>
+    </div>
+
+    <div class="panel" id="tracerPanel">
+      <div class="panel-section">
+        <h3>Image</h3>
+        <div class="info-box">
+          Load a raster image (PNG, JPG, BMP).<br>
+          Shapes are detected via contour tracing and classified into SVG primitives.
+        </div>
+        <div class="btn-group" style="justify-content:center;">
+          <button class="btn btn-sm" id="tracerLoadBtn">Load Image</button>
+          <button class="btn btn-sm" id="tracerClearBtn">Clear</button>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <h3>Detection</h3>
+        <div class="control-row">
+          <label>Threshold</label>
+          <input type="range" id="trThreshold" min="10" max="250" value="128">
+          <span class="val" id="trThresholdVal">128</span>
+        </div>
+        <div class="control-row">
+          <label>Min Area</label>
+          <input type="range" id="trMinArea" min="10" max="2000" value="100">
+          <span class="val" id="trMinAreaVal">100</span>
+        </div>
+        <div class="control-row">
+          <label>Max Area</label>
+          <input type="range" id="trMaxArea" min="1000" max="500000" value="200000" step="1000">
+          <span class="val" id="trMaxAreaVal">200k</span>
+        </div>
+        <div class="control-row">
+          <label>Epsilon %</label>
+          <input type="range" id="trEpsilon" min="1" max="10" value="3" step="0.5">
+          <span class="val" id="trEpsilonVal">3.0</span>
+        </div>
+        <div class="control-row">
+          <label>Circularity</label>
+          <input type="range" id="trCircularity" min="0.5" max="0.98" value="0.82" step="0.01">
+          <span class="val" id="trCircularityVal">0.82</span>
+        </div>
+        <div class="btn-group" style="justify-content:center;">
+          <button class="btn btn-sm btn-primary" id="tracerRunBtn">Re-detect</button>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <h3>Display</h3>
+        <label class="checkbox-row">
+          <input type="checkbox" id="trShowLabels" checked> Show labels
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="trShowImage" checked> Show source image
+        </label>
+        <div class="control-row">
+          <label>Stroke Width</label>
+          <input type="range" id="trStrokeWidth" min="1" max="5" value="2" step="0.5">
+          <span class="val" id="trStrokeWidthVal">2.0</span>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <h3>Results</h3>
+        <div class="tracer-stats">
+          <div class="tracer-stat"><div class="num" id="statTotal">0</div><div class="lbl">Total</div></div>
+          <div class="tracer-stat"><div class="num" id="statCircles">0</div><div class="lbl">Circles</div></div>
+          <div class="tracer-stat"><div class="num" id="statRects">0</div><div class="lbl">Rects</div></div>
+          <div class="tracer-stat"><div class="num" id="statOther">0</div><div class="lbl">Other</div></div>
+        </div>
+        <div class="shape-legend">
+          <div class="shape-legend-item"><div class="shape-legend-swatch" style="background:var(--shape-circle)"></div>Circle</div>
+          <div class="shape-legend-item"><div class="shape-legend-swatch" style="background:var(--shape-ellipse)"></div>Ellipse</div>
+          <div class="shape-legend-item"><div class="shape-legend-swatch" style="background:var(--shape-rect)"></div>Rect</div>
+          <div class="shape-legend-item"><div class="shape-legend-swatch" style="background:var(--shape-triangle)"></div>Triangle</div>
+          <div class="shape-legend-item"><div class="shape-legend-swatch" style="background:var(--shape-polygon)"></div>Polygon</div>
+        </div>
+        <div class="shape-list" id="shapeList"></div>
+      </div>
+
+      <div class="panel-section">
+        <h3>SVG Export</h3>
+        <div class="control-row">
+          <label>Scale</label>
+          <select id="trUnitScale">
+            <option value="1">1 px = 1 mm</option>
+            <option value="0.1">1 px = 0.1 mm</option>
+            <option value="0.5">1 px = 0.5 mm</option>
+            <option value="2">1 px = 2 mm</option>
+          </select>
+        </div>
+        <div class="control-row">
+          <label>SVG Stroke</label>
+          <input type="range" id="trSvgStroke" min="0.05" max="2" value="0.1" step="0.05">
+          <span class="val" id="trSvgStrokeVal">0.10</span>
+        </div>
+      </div>
+
+      <div class="panel-footer">
+        <button class="btn btn-primary btn-disabled" id="tracerExportBtn">⬇ Export .SVG</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SCRIPTS ==================== -->
+<script>
+// ===== TAB SWITCHING =====
+document.querySelectorAll('.tab-bar button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tabId = 'tab-' + btn.dataset.tab;
+    document.querySelectorAll('.tab-bar button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(tabId).classList.add('active');
+    document.getElementById('phaseLabel').style.display = btn.dataset.tab === 'mobile' ? '' : 'none';
+    if (btn.dataset.tab === 'mobile') { resizeCanvas(); draw(); }
+    else { tracerRedraw(); }
+  });
+});
+
+// ============================================================
+//  MOBILE DESIGNER
+// ============================================================
+const state = {
+  phase: 1, controlPoints: [], draggingPoint: -1, hoverPoint: -1,
+  circleCount: 6, sizeMode: 'symmetric', uniformRadius: 40,
+  sizeFn: '30 + 10 * sin(n)', intersectMode: 'constant',
+  overlapPx: 12, overlapPct: 20, innerShapeType: 'circle',
+  innerSizeMode: 'constant', innerSizeConst: 8, innerSizeFn: '5 + n',
+  circles: []
+};
+
+const canvas = document.getElementById('mainCanvas');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  const area = canvas.parentElement;
+  const toolbar = area.querySelector('.canvas-toolbar');
+  canvas.width = area.clientWidth;
+  canvas.height = area.clientHeight - toolbar.offsetHeight;
+}
+window.addEventListener('resize', () => { resizeCanvas(); draw(); tracerRedraw(); });
+resizeCanvas();
+
+function bezierPoint(t, p0, p1, p2, p3) {
+  const u = 1-t;
+  return { x: u*u*u*p0.x+3*u*u*t*p1.x+3*u*t*t*p2.x+t*t*t*p3.x,
+           y: u*u*u*p0.y+3*u*u*t*p1.y+3*u*t*t*p2.y+t*t*t*p3.y };
+}
+function bezierLength(p0,p1,p2,p3,steps=200) {
+  let len=0, prev=bezierPoint(0,p0,p1,p2,p3);
+  for(let i=1;i<=steps;i++){const cur=bezierPoint(i/steps,p0,p1,p2,p3);len+=Math.hypot(cur.x-prev.x,cur.y-prev.y);prev=cur;}
+  return len;
+}
+function bezierPointAtLength(target,p0,p1,p2,p3,steps=500) {
+  let len=0,prev=bezierPoint(0,p0,p1,p2,p3);
+  for(let i=1;i<=steps;i++){const cur=bezierPoint(i/steps,p0,p1,p2,p3);const seg=Math.hypot(cur.x-prev.x,cur.y-prev.y);
+    if(len+seg>=target){const f=(target-len)/seg;return{x:prev.x+f*(cur.x-prev.x),y:prev.y+f*(cur.y-prev.y)};}len+=seg;prev=cur;}
+  return prev;
+}
+function evalSizeFn(expr,n,N) {
+  try { const s=expr.replace(/sin/g,'Math.sin').replace(/cos/g,'Math.cos').replace(/sqrt/g,'Math.sqrt')
+    .replace(/abs/g,'Math.abs').replace(/pow/g,'Math.pow').replace(/PI/g,'Math.PI')
+    .replace(/\bN\b/g,N.toString()).replace(/\bn\b/g,n.toString());
+    const r=Function('"use strict";return('+s+')')();return Math.max(2,isNaN(r)?10:r);}catch(e){return 10;}
+}
+
+function computeCircles() {
+  if(state.controlPoints.length<4){state.circles=[];return;}
+  const[p0,p1,p2,p3]=state.controlPoints;const count=state.circleCount;const N=count;
+  const radii=[],innerSizes=[];
+  for(let i=0;i<count;i++){const n=i+1;radii.push(state.sizeMode==='symmetric'?state.uniformRadius:evalSizeFn(state.sizeFn,n,N));
+    innerSizes.push(state.innerSizeMode==='constant'?state.innerSizeConst:evalSizeFn(state.innerSizeFn,n,N));}
+  const totalLen=bezierLength(p0,p1,p2,p3);
+  function getOverlap(r1,r2){if(state.intersectMode==='constant')return Math.min(state.overlapPx,Math.min(r1,r2)*0.9);
+    return Math.min(r1,r2)*(state.overlapPct/100);}
+  let chainLen=radii[0];for(let i=1;i<count;i++)chainLen+=radii[i-1]+radii[i]-getOverlap(radii[i-1],radii[i]);chainLen+=radii[count-1];
+  const scale=totalLen/chainLen;const circles=[];let curvePos=radii[0]*scale;
+  for(let i=0;i<count;i++){const pt=bezierPointAtLength(curvePos,p0,p1,p2,p3);
+    circles.push({x:pt.x,y:pt.y,r:radii[i]*scale,rawInnerSize:innerSizes[i]*scale,n:i+1});
+    if(i<count-1){curvePos+=(radii[i]+radii[i+1]-getOverlap(radii[i],radii[i+1]))*scale;}}
+  for(let i=0;i<circles.length;i++){const c=circles[i];let maxInner=c.r*0.9;
+    if(i>0){const prev=circles[i-1];const d=Math.hypot(c.x-prev.x,c.y-prev.y);if(d>0)maxInner=Math.min(maxInner,(d*d+c.r*c.r-prev.r*prev.r)/(2*d));}
+    if(i<circles.length-1){const next=circles[i+1];const d=Math.hypot(c.x-next.x,c.y-next.y);if(d>0)maxInner=Math.min(maxInner,(d*d+c.r*c.r-next.r*next.r)/(2*d));}
+    c.maxInnerSize=Math.max(1,maxInner-1);c.innerSize=Math.min(c.rawInnerSize,c.maxInnerSize);}
+  state.circles=circles;
+}
+
+function draw() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle='#1a1a22';ctx.lineWidth=1;const gs=40;
+  for(let x=0;x<canvas.width;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke();}
+  for(let y=0;y<canvas.height;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke();}
+  const pts=state.controlPoints;
+  if(pts.length>=2){ctx.strokeStyle='#555';ctx.lineWidth=1.5;ctx.setLineDash([6,4]);ctx.beginPath();
+    if(pts.length===2){ctx.moveTo(pts[0].x,pts[0].y);ctx.lineTo(pts[1].x,pts[1].y);}
+    else if(pts.length===3){ctx.moveTo(pts[0].x,pts[0].y);ctx.quadraticCurveTo(pts[1].x,pts[1].y,pts[2].x,pts[2].y);}
+    else{ctx.moveTo(pts[0].x,pts[0].y);ctx.bezierCurveTo(pts[1].x,pts[1].y,pts[2].x,pts[2].y,pts[3].x,pts[3].y);}
+    ctx.stroke();ctx.setLineDash([]);
+    ctx.strokeStyle='#333';ctx.lineWidth=1;ctx.setLineDash([3,3]);
+    if(pts.length>=2){ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);ctx.lineTo(pts[1].x,pts[1].y);ctx.stroke();}
+    if(pts.length===4){ctx.beginPath();ctx.moveTo(pts[2].x,pts[2].y);ctx.lineTo(pts[3].x,pts[3].y);ctx.stroke();}
+    ctx.setLineDash([]);}
+  if(state.phase===2&&state.circles.length>0){for(const c of state.circles){
+    ctx.beginPath();ctx.arc(c.x,c.y,c.r,0,Math.PI*2);ctx.fillStyle='rgba(240,94,35,0.04)';ctx.fill();
+    ctx.strokeStyle='#f05e23';ctx.lineWidth=1.5;ctx.stroke();
+    ctx.strokeStyle='#ff8c5a';ctx.lineWidth=1.2;const s=c.innerSize;
+    if(state.innerShapeType==='circle'){ctx.beginPath();ctx.arc(c.x,c.y,s,0,Math.PI*2);ctx.stroke();}
+    else if(state.innerShapeType==='triangle'){ctx.beginPath();for(let i=0;i<3;i++){const a=(i*2*Math.PI/3)-Math.PI/2;
+      const tx=c.x+s*Math.cos(a),ty=c.y+s*Math.sin(a);i===0?ctx.moveTo(tx,ty):ctx.lineTo(tx,ty);}ctx.closePath();ctx.stroke();}
+    else if(state.innerShapeType==='square'){ctx.beginPath();ctx.rect(c.x-s,c.y-s,s*2,s*2);ctx.stroke();}
+    ctx.fillStyle='#8a8892';ctx.font='9px "DM Mono"';ctx.textAlign='center';ctx.fillText(`n=${c.n}`,c.x,c.y+c.r+14);}}
+  for(let i=0;i<pts.length;i++){const p=pts[i];const sz=state.hoverPoint===i?7:5;
+    ctx.beginPath();ctx.arc(p.x,p.y,sz,0,Math.PI*2);ctx.fillStyle=(i===0||i===3)?'#fff':'#f05e23';ctx.fill();
+    ctx.strokeStyle='#000';ctx.lineWidth=1.5;ctx.stroke();
+    ctx.fillStyle='#888';ctx.font='10px "DM Mono"';ctx.textAlign='center';ctx.fillText(`P${i}`,p.x,p.y-12);}
+}
+
+function getCanvasPos(e){const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}
+function findPoint(pos,th=15){for(let i=0;i<state.controlPoints.length;i++){if(Math.hypot(state.controlPoints[i].x-pos.x,state.controlPoints[i].y-pos.y)<th)return i;}return-1;}
+
+canvas.addEventListener('mousedown',e=>{const pos=getCanvasPos(e);const idx=findPoint(pos);
+  if(idx>=0){state.draggingPoint=idx;canvas.style.cursor='grabbing';return;}
+  if(state.phase===1&&state.controlPoints.length<4){state.controlPoints.push(pos);updatePointCount();
+    if(state.controlPoints.length===4)document.getElementById('confirmCurveBtn').disabled=false;draw();}});
+canvas.addEventListener('mousemove',e=>{const pos=getCanvasPos(e);
+  document.getElementById('coordDisplay').textContent=`${Math.round(pos.x)}, ${Math.round(pos.y)}`;
+  if(state.draggingPoint>=0){state.controlPoints[state.draggingPoint]=pos;if(state.phase===2)computeCircles();draw();return;}
+  const idx=findPoint(pos);state.hoverPoint=idx;canvas.style.cursor=idx>=0?'grab':'crosshair';draw();});
+canvas.addEventListener('mouseup',()=>{state.draggingPoint=-1;canvas.style.cursor='crosshair';});
+
+function updatePointCount(){document.getElementById('pointCountDisplay').textContent=`${state.controlPoints.length} / 4 points`;}
+document.getElementById('clearPointsBtn').addEventListener('click',()=>{state.controlPoints=[];state.circles=[];
+  document.getElementById('confirmCurveBtn').disabled=true;updatePointCount();draw();});
+document.getElementById('confirmCurveBtn').addEventListener('click',()=>{if(state.controlPoints.length!==4)return;
+  state.phase=2;document.getElementById('phase1Panel').style.display='none';document.getElementById('phase2Panel').style.display='';
+  document.getElementById('phaseLabel').textContent='Phase 2: Design Circles';
+  document.getElementById('canvasHint').textContent='Drag points to adjust curve • Use panel to design circles';computeCircles();draw();});
+document.getElementById('resetCurveBtn').addEventListener('click',()=>{state.phase=1;state.controlPoints=[];state.circles=[];
+  document.getElementById('phase1Panel').style.display='';document.getElementById('phase2Panel').style.display='none';
+  document.getElementById('phaseLabel').textContent='Phase 1: Draw Curve';
+  document.getElementById('canvasHint').textContent='Click to place 4 control points for a Bézier curve';
+  document.getElementById('confirmCurveBtn').disabled=true;updatePointCount();draw();});
+
+function wireSlider(id,valId,stateKey,suffix='',cb){const el=document.getElementById(id);const valEl=document.getElementById(valId);
+  el.addEventListener('input',()=>{state[stateKey]=parseFloat(el.value);valEl.textContent=el.value+suffix;computeCircles();draw();if(cb)cb();});}
+wireSlider('circleCount','circleCountVal','circleCount');
+wireSlider('uniformRadius','uniformRadiusVal','uniformRadius');
+wireSlider('overlapPx','overlapPxVal','overlapPx');
+wireSlider('overlapPct','overlapPctVal','overlapPct','%');
+wireSlider('innerSizeConst','innerSizeConstVal','innerSizeConst');
+
+function wireModeToggle(cid,sk,sm){const c=document.getElementById(cid);c.querySelectorAll('button').forEach(btn=>{
+  btn.addEventListener('click',()=>{c.querySelectorAll('button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
+    state[sk]=btn.dataset.mode;for(const[m,eid]of Object.entries(sm))document.getElementById(eid).style.display=m===btn.dataset.mode?'':'none';
+    computeCircles();draw();});});}
+wireModeToggle('sizeModeToggle','sizeMode',{symmetric:'sizeSymmetricControls',function:'sizeFunctionControls'});
+wireModeToggle('intersectModeToggle','intersectMode',{constant:'intersectConstantControls',relative:'intersectRelativeControls'});
+wireModeToggle('innerSizeModeToggle','innerSizeMode',{constant:'innerSizeConstantControls',function:'innerSizeFunctionControls'});
+document.getElementById('sizeFnInput').addEventListener('input',e=>{state.sizeFn=e.target.value;computeCircles();draw();});
+document.getElementById('innerSizeFnInput').addEventListener('input',e=>{state.innerSizeFn=e.target.value;computeCircles();draw();});
+document.getElementById('innerShapeType').addEventListener('change',e=>{state.innerShapeType=e.target.value;draw();});
+
+// SVG Export
+document.getElementById('exportSvgBtn').addEventListener('click',()=>{
+  if(state.circles.length===0)return;const scale=parseFloat(document.getElementById('unitScale').value);
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  for(const c of state.circles){minX=Math.min(minX,c.x-c.r);maxX=Math.max(maxX,c.x+c.r);minY=Math.min(minY,c.y-c.r);maxY=Math.max(maxY,c.y+c.r);}
+  const margin=5,w=maxX-minX+margin*2,h=maxY-minY+margin*2,rW=(w*scale).toFixed(4),rH=(h*scale).toFixed(4);
+  const ox=-minX+margin,oy=-minY+margin;let paths=[];const sw=(0.1/scale).toFixed(4);
+  for(const c of state.circles){const cx=(c.x+ox).toFixed(4),cy=(c.y+oy).toFixed(4),r=c.r.toFixed(4);
+    paths.push(`  <circle cx="${cx}" cy="${cy}" r="${r}"/>`);const s=c.innerSize;
+    if(state.innerShapeType==='circle')paths.push(`  <circle cx="${cx}" cy="${cy}" r="${s.toFixed(4)}"/>`);
+    else if(state.innerShapeType==='triangle'){const v=[];for(let i=0;i<3;i++){const a=(i*2*Math.PI/3)-Math.PI/2;
+      v.push(`${(c.x+ox+s*Math.cos(a)).toFixed(4)},${(c.y+oy+s*Math.sin(a)).toFixed(4)}`);}paths.push(`  <polygon points="${v.join(' ')}"/>`);}
+    else if(state.innerShapeType==='square'){paths.push(`  <rect x="${(c.x+ox-s).toFixed(4)}" y="${(c.y+oy-s).toFixed(4)}" width="${(s*2).toFixed(4)}" height="${(s*2).toFixed(4)}"/>`);}
+  }
+  const svg=`<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n<svg xmlns="http://www.w3.org/2000/svg"\n     width="${rW}mm" height="${rH}mm"\n     viewBox="0 0 ${w.toFixed(4)} ${h.toFixed(4)}">\n<g fill="none" stroke="#000000" stroke-width="${sw}">\n${paths.join('\n')}\n</g>\n</svg>`;
+  downloadFile(svg,'calder_mobile.svg','image/svg+xml');});
+
+// DXF Export
+document.getElementById('exportDxfBtn').addEventListener('click',()=>{
+  if(state.circles.length===0)return;const scale=parseFloat(document.getElementById('unitScale').value);
+  let dxf='0\nSECTION\n2\nHEADER\n0\nENDSEC\n0\nSECTION\n2\nTABLES\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n';
+  for(const c of state.circles){const cx=c.x*scale,cy=c.y*scale,r=c.r*scale,s=c.innerSize*scale;
+    dxf+=dxfCircle(cx,cy,r);if(state.innerShapeType==='circle')dxf+=dxfCircle(cx,cy,s);
+    else if(state.innerShapeType==='triangle'){const v=[];for(let i=0;i<3;i++){const a=(i*2*Math.PI/3)-Math.PI/2;
+      v.push({x:cx+s*Math.cos(a),y:cy+s*Math.sin(a)});}for(let i=0;i<3;i++)dxf+=dxfLine(v[i].x,v[i].y,v[(i+1)%3].x,v[(i+1)%3].y);}
+    else if(state.innerShapeType==='square'){dxf+=dxfLine(cx-s,cy-s,cx+s,cy-s);dxf+=dxfLine(cx+s,cy-s,cx+s,cy+s);
+      dxf+=dxfLine(cx+s,cy+s,cx-s,cy+s);dxf+=dxfLine(cx-s,cy+s,cx-s,cy-s);}}
+  dxf+='0\nENDSEC\n0\nEOF\n';downloadFile(dxf,'calder_mobile.dxf','application/dxf');});
+
+function dxfCircle(cx,cy,r){return`0\nCIRCLE\n8\n0\n10\n${cx.toFixed(4)}\n20\n${cy.toFixed(4)}\n30\n0.0\n40\n${r.toFixed(4)}\n`;}
+function dxfLine(x1,y1,x2,y2){return`0\nLINE\n8\n0\n10\n${x1.toFixed(4)}\n20\n${y1.toFixed(4)}\n30\n0.0\n11\n${x2.toFixed(4)}\n21\n${y2.toFixed(4)}\n31\n0.0\n`;}
+function downloadFile(content,filename,mimeType){const blob=new Blob([content],{type:mimeType});const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);}
+
+draw();
+
+// ============================================================
+//  IMAGE TRACER MODULE
+// ============================================================
+const tracerState = {
+  sourceImage: null,
+  detectedShapes: [],
+  params: { threshold:128, minArea:100, maxArea:200000, epsilon:3.0, circularity:0.82 },
+  display: { showLabels:true, showImage:true, strokeWidth:2 }
+};
+
+const trCanvas = document.getElementById('tracerCanvas');
+const trCtx = trCanvas.getContext('2d');
+const dropZone = document.getElementById('dropZone');
+const tracerFileInput = document.getElementById('tracerFileInput');
+
+const SHAPE_COLORS = {
+  circle:'#f05e23', ellipse:'#ff8c5a', rect:'#4ecb71',
+  square:'#4ecb71', triangle:'#5ba8f7', polygon:'#c77dff'
+};
+
+// File loading
+document.getElementById('browseLink').addEventListener('click',()=>tracerFileInput.click());
+document.getElementById('tracerLoadBtn').addEventListener('click',()=>tracerFileInput.click());
+tracerFileInput.addEventListener('change',e=>{if(e.target.files.length>0)loadImageFile(e.target.files[0]);});
+
+dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('dragover');});
+dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('dragover');
+  if(e.dataTransfer.files.length>0)loadImageFile(e.dataTransfer.files[0]);});
+
+function loadImageFile(file) {
+  if(!file.type.startsWith('image/'))return;
+  const reader=new FileReader();
+  reader.onload=e=>{const img=new Image();img.onload=()=>{
+    tracerState.sourceImage=img;trCanvas.width=img.width;trCanvas.height=img.height;
+    trCanvas.style.display='block';dropZone.classList.add('hidden');
+    document.getElementById('tracerHint').textContent='Adjust parameters and re-detect • Export when ready';
+    document.getElementById('tracerExportBtn').classList.remove('btn-disabled');
+    runDetection();};img.src=e.target.result;};
+  reader.readAsDataURL(file);
+}
+
+document.getElementById('tracerClearBtn').addEventListener('click',()=>{
+  tracerState.sourceImage=null;tracerState.detectedShapes=[];
+  trCanvas.style.display='none';dropZone.classList.remove('hidden');
+  document.getElementById('tracerHint').textContent='Load an image to begin shape detection';
+  document.getElementById('tracerExportBtn').classList.add('btn-disabled');
+  updateTracerStats();document.getElementById('shapeList').innerHTML='';});
+
+// Slider wiring
+function wireTracerSlider(id,valId,paramKey,fmt){
+  const el=document.getElementById(id);const valEl=document.getElementById(valId);
+  el.addEventListener('input',()=>{tracerState.params[paramKey]=parseFloat(el.value);
+    valEl.textContent=fmt?fmt(el.value):el.value;});}
+wireTracerSlider('trThreshold','trThresholdVal','threshold');
+wireTracerSlider('trMinArea','trMinAreaVal','minArea');
+wireTracerSlider('trMaxArea','trMaxAreaVal','maxArea',v=>v>=1000?Math.round(v/1000)+'k':v);
+wireTracerSlider('trEpsilon','trEpsilonVal','epsilon',v=>parseFloat(v).toFixed(1));
+wireTracerSlider('trCircularity','trCircularityVal','circularity');
+
+document.getElementById('trShowLabels').addEventListener('change',e=>{tracerState.display.showLabels=e.target.checked;tracerRedraw();});
+document.getElementById('trShowImage').addEventListener('change',e=>{tracerState.display.showImage=e.target.checked;tracerRedraw();});
+document.getElementById('trStrokeWidth').addEventListener('input',e=>{tracerState.display.strokeWidth=parseFloat(e.target.value);
+  document.getElementById('trStrokeWidthVal').textContent=parseFloat(e.target.value).toFixed(1);tracerRedraw();});
+document.getElementById('trSvgStroke').addEventListener('input',e=>{
+  document.getElementById('trSvgStrokeVal').textContent=parseFloat(e.target.value).toFixed(2);});
+document.getElementById('tracerRunBtn').addEventListener('click',()=>{if(tracerState.sourceImage)runDetection();});
+
+// ===== CORE DETECTION =====
+function runDetection() {
+  if(!tracerState.sourceImage)return;
+  const loading=document.getElementById('tracerLoading');loading.classList.add('visible');
+  requestAnimationFrame(()=>{setTimeout(()=>{try{doDetection();}finally{loading.classList.remove('visible');}},50);});
+}
+
+function doDetection() {
+  const img=tracerState.sourceImage;const w=img.width,h=img.height;
+  const{threshold,minArea,maxArea,epsilon,circularity}=tracerState.params;
+
+  const off=document.createElement('canvas');off.width=w;off.height=h;
+  const oCtx=off.getContext('2d');oCtx.drawImage(img,0,0);
+  const imgData=oCtx.getImageData(0,0,w,h);const px=imgData.data;
+
+  // Grayscale + threshold → binary
+  const binary=new Uint8Array(w*h);
+  for(let i=0;i<w*h;i++){
+    const gray=0.299*px[i*4]+0.587*px[i*4+1]+0.114*px[i*4+2];
+    binary[i]=gray<threshold?1:0;
+  }
+
+  // Contour tracing (Moore neighborhood)
+  const visited=new Uint8Array(w*h);
+  const contours=[];
+  const dx=[1,1,0,-1,-1,-1,0,1],dy=[0,1,1,1,0,-1,-1,-1];
+
+  function traceContour(sx,sy) {
+    const contour=[];let startDir=0;
+    for(let d=0;d<8;d++){const nx=sx+dx[d],ny=sy+dy[d];
+      if(nx<0||nx>=w||ny<0||ny>=h||binary[ny*w+nx]===0){startDir=d;break;}}
+    let cx=sx,cy=sy,dir=startDir,steps=0;const maxSteps=w*h;
+    do{contour.push({x:cx,y:cy});visited[cy*w+cx]=1;
+      let searchDir=(dir+5)%8,found=false;
+      for(let i=0;i<8;i++){const nd=(searchDir+i)%8;const nx=cx+dx[nd],ny=cy+dy[nd];
+        if(nx>=0&&nx<w&&ny>=0&&ny<h&&binary[ny*w+nx]===1){dir=nd;cx=nx;cy=ny;found=true;break;}}
+      if(!found)break;steps++;}while((cx!==sx||cy!==sy)&&steps<maxSteps);
+    return contour;
+  }
+
+  for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
+    if(binary[y*w+x]===1&&binary[y*w+(x-1)]===0&&!visited[y*w+x]){
+      const c=traceContour(x,y);if(c.length>=8)contours.push(c);}}
+
+  // Classify contours
+  const shapes=[];
+  for(const contour of contours){
+    let area=0;const n=contour.length;
+    for(let i=0;i<n;i++){const j=(i+1)%n;area+=contour[i].x*contour[j].y-contour[j].x*contour[i].y;}
+    area=Math.abs(area)/2;
+    if(area<minArea||area>maxArea)continue;
+
+    let perim=0;for(let i=0;i<n;i++){const j=(i+1)%n;perim+=Math.hypot(contour[j].x-contour[i].x,contour[j].y-contour[i].y);}
+    const circ=(4*Math.PI*area)/(perim*perim);
+
+    let bMinX=Infinity,bMinY=Infinity,bMaxX=-Infinity,bMaxY=-Infinity;
+    for(const p of contour){bMinX=Math.min(bMinX,p.x);bMinY=Math.min(bMinY,p.y);bMaxX=Math.max(bMaxX,p.x);bMaxY=Math.max(bMaxY,p.y);}
+    const bw=bMaxX-bMinX,bh=bMaxY-bMinY;
+
+    let cx=0,cy=0;for(const p of contour){cx+=p.x;cy+=p.y;}cx/=n;cy/=n;
+
+    const approx=approxPolyDP(contour,(epsilon/100)*perim);
+
+    let shape;
+    if(circ>=circularity){
+      const aspect=Math.min(bw,bh)/Math.max(bw,bh);
+      if(aspect>0.85){shape={type:'circle',cx,cy,r:(bw+bh)/4,area,contour};}
+      else{shape={type:'ellipse',cx,cy,rx:bw/2,ry:bh/2,area,contour};}
+    }else if(approx.length===3){
+      shape={type:'triangle',vertices:approx,cx,cy,area,contour};
+    }else if(approx.length===4){
+      const isRect=checkRectangular(approx);const aspect=Math.min(bw,bh)/Math.max(bw,bh);
+      if(isRect&&aspect>0.85)shape={type:'square',x:bMinX,y:bMinY,w:bw,h:bh,cx,cy,area,contour};
+      else if(isRect)shape={type:'rect',x:bMinX,y:bMinY,w:bw,h:bh,cx,cy,area,contour};
+      else shape={type:'polygon',vertices:approx,cx,cy,area,contour};
+    }else{shape={type:'polygon',vertices:approx,cx,cy,area,contour};}
+    shapes.push(shape);
+  }
+  shapes.sort((a,b)=>b.area-a.area);
+  tracerState.detectedShapes=shapes;
+  updateTracerStats();updateShapeList();tracerRedraw();
+}
+
+// Douglas-Peucker
+function approxPolyDP(contour,eps){
+  if(contour.length<=2)return contour.slice();
+  let maxD=0,maxI=0;const first=contour[0],last=contour[contour.length-1];
+  for(let i=1;i<contour.length-1;i++){const d=ptLineDist(contour[i],first,last);if(d>maxD){maxD=d;maxI=i;}}
+  if(maxD>eps){const l=approxPolyDP(contour.slice(0,maxI+1),eps);const r=approxPolyDP(contour.slice(maxI),eps);return l.slice(0,-1).concat(r);}
+  return[first,last];
+}
+function ptLineDist(p,a,b){const dx=b.x-a.x,dy=b.y-a.y,lsq=dx*dx+dy*dy;if(lsq===0)return Math.hypot(p.x-a.x,p.y-a.y);
+  const t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/lsq));return Math.hypot(p.x-(a.x+t*dx),p.y-(a.y+t*dy));}
+
+function checkRectangular(v){if(v.length!==4)return false;
+  for(let i=0;i<4;i++){const a=v[i],b=v[(i+1)%4],c=v[(i+2)%4];
+    const v1x=a.x-b.x,v1y=a.y-b.y,v2x=c.x-b.x,v2y=c.y-b.y;
+    const dot=v1x*v2x+v1y*v2y,m1=Math.hypot(v1x,v1y),m2=Math.hypot(v2x,v2y);
+    if(m1===0||m2===0)return false;if(Math.abs(dot/(m1*m2))>0.25)return false;}return true;}
+
+// Drawing
+function tracerRedraw(){
+  if(!tracerState.sourceImage)return;
+  trCtx.clearRect(0,0,trCanvas.width,trCanvas.height);
+  if(tracerState.display.showImage){trCtx.globalAlpha=0.35;trCtx.drawImage(tracerState.sourceImage,0,0);trCtx.globalAlpha=1.0;}
+  const sw=tracerState.display.strokeWidth;
+  for(const s of tracerState.detectedShapes){
+    const color=SHAPE_COLORS[s.type]||'#c77dff';trCtx.strokeStyle=color;trCtx.lineWidth=sw;trCtx.fillStyle=color+'15';
+    if(s.type==='circle'){trCtx.beginPath();trCtx.arc(s.cx,s.cy,s.r,0,Math.PI*2);trCtx.fill();trCtx.stroke();}
+    else if(s.type==='ellipse'){trCtx.beginPath();trCtx.ellipse(s.cx,s.cy,s.rx,s.ry,0,0,Math.PI*2);trCtx.fill();trCtx.stroke();}
+    else if(s.type==='rect'||s.type==='square'){trCtx.beginPath();trCtx.rect(s.x,s.y,s.w,s.h);trCtx.fill();trCtx.stroke();}
+    else if(s.type==='triangle'||s.type==='polygon'){trCtx.beginPath();const v=s.vertices;trCtx.moveTo(v[0].x,v[0].y);
+      for(let i=1;i<v.length;i++)trCtx.lineTo(v[i].x,v[i].y);trCtx.closePath();trCtx.fill();trCtx.stroke();}
+    if(tracerState.display.showLabels){trCtx.fillStyle=color;trCtx.font='bold 11px "DM Mono"';trCtx.textAlign='center';
+      trCtx.fillText(s.type,s.cx,s.cy-6);
+      if(s.type==='circle'){trCtx.font='9px "DM Mono"';trCtx.fillText(`r=${Math.round(s.r)}`,s.cx,s.cy+8);}}}
+}
+
+function updateTracerStats(){const s=tracerState.detectedShapes;
+  document.getElementById('statTotal').textContent=s.length;
+  document.getElementById('statCircles').textContent=s.filter(x=>x.type==='circle'||x.type==='ellipse').length;
+  document.getElementById('statRects').textContent=s.filter(x=>x.type==='rect'||x.type==='square').length;
+  document.getElementById('statOther').textContent=s.filter(x=>x.type==='triangle'||x.type==='polygon').length;}
+
+function updateShapeList(){const list=document.getElementById('shapeList');list.innerHTML='';
+  for(let i=0;i<tracerState.detectedShapes.length;i++){const s=tracerState.detectedShapes[i];
+    const color=SHAPE_COLORS[s.type]||'#c77dff';
+    let dims='';if(s.type==='circle')dims=`r=${Math.round(s.r)}`;
+    else if(s.type==='ellipse')dims=`${Math.round(s.rx)}×${Math.round(s.ry)}`;
+    else if(s.type==='rect'||s.type==='square')dims=`${Math.round(s.w)}×${Math.round(s.h)}`;
+    else if(s.vertices)dims=`${s.vertices.length} pts`;
+    const item=document.createElement('div');item.className='shape-list-item';
+    item.innerHTML=`<div class="swatch" style="background:${color}"></div><span class="shape-info">${i+1}. ${s.type}</span><span class="shape-dims">${dims}</span>`;
+    list.appendChild(item);}}
+
+// SVG Export
+document.getElementById('tracerExportBtn').addEventListener('click',()=>{
+  const shapes=tracerState.detectedShapes;if(shapes.length===0||!tracerState.sourceImage)return;
+  const scale=parseFloat(document.getElementById('trUnitScale').value);
+  const sw=parseFloat(document.getElementById('trSvgStroke').value);
+  const imgW=tracerState.sourceImage.width,imgH=tracerState.sourceImage.height;
+  const rW=(imgW*scale).toFixed(4),rH=(imgH*scale).toFixed(4),strokeW=(sw/scale).toFixed(4);
+  let els=[];
+  for(const s of shapes){
+    if(s.type==='circle')els.push(`  <circle cx="${s.cx.toFixed(2)}" cy="${s.cy.toFixed(2)}" r="${s.r.toFixed(2)}"/>`);
+    else if(s.type==='ellipse')els.push(`  <ellipse cx="${s.cx.toFixed(2)}" cy="${s.cy.toFixed(2)}" rx="${s.rx.toFixed(2)}" ry="${s.ry.toFixed(2)}"/>`);
+    else if(s.type==='rect'||s.type==='square')els.push(`  <rect x="${s.x.toFixed(2)}" y="${s.y.toFixed(2)}" width="${s.w.toFixed(2)}" height="${s.h.toFixed(2)}"/>`);
+    else if(s.type==='triangle'||s.type==='polygon'){const pts=s.vertices.map(v=>`${v.x.toFixed(2)},${v.y.toFixed(2)}`).join(' ');
+      els.push(`  <polygon points="${pts}"/>`);}}
+  const svg=`<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n<svg xmlns="http://www.w3.org/2000/svg"\n     width="${rW}mm" height="${rH}mm"\n     viewBox="0 0 ${imgW} ${imgH}">\n<g fill="none" stroke="#000000" stroke-width="${strokeW}">\n${els.join('\n')}\n</g>\n</svg>`;
+  downloadFile(svg,'traced_shapes.svg','image/svg+xml');});
+
+// Mouse coords
+trCanvas.addEventListener('mousemove',e=>{const r=trCanvas.getBoundingClientRect();
+  const sx=trCanvas.width/r.width,sy=trCanvas.height/r.height;
+  document.getElementById('tracerCoordDisplay').textContent=`${Math.round((e.clientX-r.left)*sx)}, ${Math.round((e.clientY-r.top)*sy)}`;});
+
+</script>
+</body>
+</html>
