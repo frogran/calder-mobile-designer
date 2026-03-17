@@ -892,9 +892,14 @@ document.getElementById('exportSvgBtn').addEventListener('click',()=>{
   for(const c of state.circles){minX=Math.min(minX,c.x-c.r);maxX=Math.max(maxX,c.x+c.r);minY=Math.min(minY,c.y-c.r);maxY=Math.max(maxY,c.y+c.r);}
   const margin=5,w=maxX-minX+margin*2,h=maxY-minY+margin*2,rW=(w*scale).toFixed(4),rH=(h*scale).toFixed(4);
   const ox=-minX+margin,oy=-minY+margin;let paths=[];const sw=(0.1/scale).toFixed(4);
-  for(const c of state.circles){const cx=(c.x+ox).toFixed(4),cy=(c.y+oy).toFixed(4),r=c.r.toFixed(4);
-    paths.push(`  <circle cx="${cx}" cy="${cy}" r="${r}"/>`);const s=c.innerSize;
-    if(state.innerShapeType==='circle')paths.push(`  <circle cx="${cx}" cy="${cy}" r="${s.toFixed(4)}"/>`);
+  for(const c of state.circles){const svgCx=c.x+ox,svgCy=c.y+oy,svgR=c.r;
+    const cx4=svgCx.toFixed(4),cy4=svgCy.toFixed(4),r4=svgR.toFixed(4);
+    const blockers=state.circles.filter(o=>o!==c&&Math.hypot(o.x-c.x,o.y-c.y)<c.r+o.r).map(o=>({cx:o.x+ox,cy:o.y+oy,r:o.r}));
+    const arcs=getTrimmedArcs(svgCx,svgCy,svgR,blockers);
+    if(arcs===null)paths.push(`  <circle cx="${cx4}" cy="${cy4}" r="${r4}"/>`);
+    else arcs.forEach(({startDeg,endDeg})=>paths.push(svgArcPath(svgCx,svgCy,svgR,startDeg,endDeg)));
+    const s=c.innerSize;
+    if(state.innerShapeType==='circle')paths.push(`  <circle cx="${cx4}" cy="${cy4}" r="${s.toFixed(4)}"/>`);
     else if(state.innerShapeType==='triangle'){const v=[];for(let i=0;i<3;i++){const a=(i*2*Math.PI/3)-Math.PI/2;
       v.push(`${(c.x+ox+s*Math.cos(a)).toFixed(4)},${(c.y+oy+s*Math.sin(a)).toFixed(4)}`);}paths.push(`  <polygon points="${v.join(' ')}"/>`);}
     else if(state.innerShapeType==='square'){paths.push(`  <rect x="${(c.x+ox-s).toFixed(4)}" y="${(c.y+oy-s).toFixed(4)}" width="${(s*2).toFixed(4)}" height="${(s*2).toFixed(4)}"/>`);}
@@ -950,6 +955,18 @@ function getTrimmedArcs(cx,cy,r,blockers){
     if(!blocked.some(([bs,be])=>inArc(bs,be,mid)))free.push({startDeg:toDeg(s),endDeg:toDeg(e)});
   }
   return free;
+}
+
+// Convert a trimmed arc (DXF math angles, CCW) to an SVG <path> arc command.
+// DXF angles use Y-up convention, so screen Y = cy - r*sin(angle).
+// sweep-flag=1 (CW in screen) matches CCW in math (Y-up).
+function svgArcPath(cx,cy,r,startDeg,endDeg){
+  const toRad=d=>d*Math.PI/180,sr=toRad(startDeg),er=toRad(endDeg);
+  const sx=cx+r*Math.cos(sr),sy=cy-r*Math.sin(sr); // Y-flip: DXF math→screen
+  const ex=cx+r*Math.cos(er),ey=cy-r*Math.sin(er);
+  const span=((endDeg-startDeg)+360)%360||360;
+  const large=span>180?1:0;
+  return`  <path d="M ${sx.toFixed(4)} ${sy.toFixed(4)} A ${r.toFixed(4)} ${r.toFixed(4)} 0 ${large} 1 ${ex.toFixed(4)} ${ey.toFixed(4)}"/>`;
 }
 
 function dxfArc(cx,cy,r,startDeg,endDeg){return`0\nARC\n8\n0\n10\n${cx.toFixed(4)}\n20\n${cy.toFixed(4)}\n30\n0.0\n40\n${r.toFixed(4)}\n50\n${startDeg.toFixed(4)}\n51\n${endDeg.toFixed(4)}\n`;}
