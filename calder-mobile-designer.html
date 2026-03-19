@@ -487,10 +487,23 @@
       <div id="phase2Panel" style="display:none;">
         <div class="panel-section">
           <h3>Circle Count</h3>
-          <div class="control-row">
-            <label>Circles</label>
-            <input type="range" id="circleCount" min="3" max="20" value="6">
-            <span class="val" id="circleCountVal">6</span>
+          <label class="checkbox-row">
+            <input type="checkbox" id="autoCountCheck"> Auto-fit to curve
+          </label>
+          <div id="manualCountControls">
+            <div class="control-row">
+              <label>Circles</label>
+              <input type="range" id="circleCount" min="3" max="20" value="6">
+              <span class="val" id="circleCountVal">6</span>
+            </div>
+          </div>
+          <div id="autoCountControls" style="display:none;">
+            <div class="control-row">
+              <label>Min radius</label>
+              <input type="range" id="minRadius" min="2" max="40" value="5">
+              <span class="val" id="minRadiusVal">5</span>
+            </div>
+            <div class="fn-hint" id="autoCountDisplay">—</div>
           </div>
         </div>
         <div class="panel-section">
@@ -751,6 +764,7 @@ const state = {
   sizeFn: '30 + 10 * sin(n)', intersectMode: 'constant',
   overlapPx: 12, overlapPct: 20, innerShapeType: 'circle',
   innerSizeMode: 'constant', innerSizeConst: 8, innerSizeFn: '5 + n',
+  autoCount: false, minRadius: 5,
   circles: []
 };
 
@@ -791,7 +805,28 @@ function evalSizeFn(expr,n,N) {
 
 function computeCircles() {
   if(state.controlPoints.length<4){state.circles=[];return;}
-  const[p0,p1,p2,p3]=state.controlPoints;const count=state.circleCount;const N=count;
+  const[p0,p1,p2,p3]=state.controlPoints;
+  // Auto-fit: iterate n=1,2,… accumulating chain length until curve is filled or radius < minRadius.
+  // chain(1)=2*r0; chain(n)=chain(n-1)+2*r[n]-overlap(r[n-1],r[n])
+  if(state.autoCount){
+    const totalLen=bezierLength(p0,p1,p2,p3);
+    const getOvA=(r1,r2)=>state.intersectMode==='constant'?Math.min(state.overlapPx,Math.min(r1,r2)*0.9):Math.min(r1,r2)*(state.overlapPct/100);
+    const r0=state.sizeMode==='symmetric'?state.uniformRadius:evalSizeFn(state.sizeFn,1,100);
+    let chain=2*r0,prevR=r0,autoN=1;
+    while(autoN<60){
+      const r=state.sizeMode==='symmetric'?state.uniformRadius:evalSizeFn(state.sizeFn,autoN+1,100);
+      if(r<state.minRadius)break;
+      chain+=2*r-getOvA(prevR,r);
+      prevR=r;autoN++;
+      if(chain>=totalLen)break;
+    }
+    state.circleCount=Math.max(3,autoN);
+    const d=document.getElementById('autoCountDisplay');
+    if(d)d.textContent=`→ ${state.circleCount} circles`;
+    const cv=document.getElementById('circleCountVal');
+    if(cv)cv.textContent=state.circleCount;
+  }
+  const count=state.circleCount;const N=count;
   const radii=[],innerSizes=[];
   for(let i=0;i<count;i++){const n=i+1;radii.push(state.sizeMode==='symmetric'?state.uniformRadius:evalSizeFn(state.sizeFn,n,N));
     innerSizes.push(state.innerSizeMode==='constant'?state.innerSizeConst:evalSizeFn(state.innerSizeFn,n,N));}
@@ -869,7 +904,14 @@ document.getElementById('resetCurveBtn').addEventListener('click',()=>{state.pha
 function wireSlider(id,valId,stateKey,suffix='',cb){const el=document.getElementById(id);const valEl=document.getElementById(valId);
   el.addEventListener('input',()=>{state[stateKey]=parseFloat(el.value);valEl.textContent=el.value+suffix;computeCircles();draw();if(cb)cb();});}
 wireSlider('circleCount','circleCountVal','circleCount');
+wireSlider('minRadius','minRadiusVal','minRadius');
 wireSlider('uniformRadius','uniformRadiusVal','uniformRadius');
+document.getElementById('autoCountCheck').addEventListener('change',e=>{
+  state.autoCount=e.target.checked;
+  document.getElementById('manualCountControls').style.display=e.target.checked?'none':'';
+  document.getElementById('autoCountControls').style.display=e.target.checked?'':'none';
+  computeCircles();draw();
+});
 wireSlider('overlapPx','overlapPxVal','overlapPx');
 wireSlider('overlapPct','overlapPctVal','overlapPct','%');
 wireSlider('innerSizeConst','innerSizeConstVal','innerSizeConst');
