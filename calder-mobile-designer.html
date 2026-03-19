@@ -966,7 +966,9 @@ function svgArcPath(cx,cy,r,startDeg,endDeg){
   const ex=cx+r*Math.cos(er),ey=cy-r*Math.sin(er);
   const span=((endDeg-startDeg)+360)%360||360;
   const large=span>180?1:0;
-  return`  <path d="M ${sx.toFixed(4)} ${sy.toFixed(4)} A ${r.toFixed(4)} ${r.toFixed(4)} 0 ${large} 1 ${ex.toFixed(4)} ${ey.toFixed(4)}"/>`;
+  // sweep=0: CCW in screen, which matches DXF CCW-math arcs when Y is flipped.
+  // sweep=1 produces the mirror arc (the "inverse" mode — arcs inside neighbors).
+  return`  <path d="M ${sx.toFixed(4)} ${sy.toFixed(4)} A ${r.toFixed(4)} ${r.toFixed(4)} 0 ${large} 0 ${ex.toFixed(4)} ${ey.toFixed(4)}"/>`;
 }
 
 function dxfArc(cx,cy,r,startDeg,endDeg){return`0\nARC\n8\n0\n10\n${cx.toFixed(4)}\n20\n${cy.toFixed(4)}\n30\n0.0\n40\n${r.toFixed(4)}\n50\n${startDeg.toFixed(4)}\n51\n${endDeg.toFixed(4)}\n`;}
